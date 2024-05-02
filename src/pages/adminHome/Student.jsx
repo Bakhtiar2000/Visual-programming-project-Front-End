@@ -5,14 +5,20 @@ import { FiEdit } from "react-icons/fi";
 import { IoMdClose } from "react-icons/io";
 import { MdOutlineDone } from "react-icons/md";
 import Swal from "sweetalert2";
+import useAxiosSecure from "../../hooks/useAxios";
+import useStudents from "../../hooks/useStudents";
 
-const Student = ({ student, index }) => {
-  const { _id, studentName, className, studentAddress, email, phoneNumber } = student;
+const Student = ({ student, index, studentSearch }) => {
+  console.log(studentSearch);
+  const [axiosSecure] = useAxiosSecure()
+  const [studentData, , studentRefetch] = useStudents()
+  const { studentId, studentName, className, studentAddress, email, phoneNumber } = student;
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
   const [isStudentEditClicked, setIsStudentEditClicked] = useState(false);
 
   const onStudentSubmit = data => {
     const updatedStudent = {
+      studentId: data?.id,
       studentName: data?.name,
       className: data?.class,
       studentAddress: data?.address,
@@ -20,8 +26,24 @@ const Student = ({ student, index }) => {
       phoneNumber: data?.phone,
     }
     console.log(updatedStudent);
-    setIsStudentEditClicked(false);
-    reset();
+
+    axiosSecure.post(`/Student/${studentId}`, updatedStudent)
+    .then(res => {
+      if (res.status === 200) {
+        Swal.fire({
+          title: `${studentName}'s info has been updated`,
+          showClass: {
+            popup: 'animate__animated animate__fadeInDown'
+          },
+          hideClass: {
+            popup: 'animate__animated animate__fadeOutUp'
+          }
+        })
+        studentRefetch();
+        setIsStudentEditClicked(false);
+        reset();
+      }
+    })
   }
 
   const handleCaseDelete = () => {
@@ -34,22 +56,45 @@ const Student = ({ student, index }) => {
       confirmButtonText: "Yes, Delete it!",
     }).then((result) => {
       if (result.isConfirmed) {
-
+        axiosSecure.delete(`Student/${studentId}`)
+          .then(res => {
+            if (res.status === 200) {
+              Swal.fire({
+                icon: "success",
+                title: "Deleted Successfully!",
+                showConfirmButton: false,
+                timer: 1500,
+              });
+              studentRefetch()
+            }
+          })
       }
     });
   };
+
+  console.log("Inside student: ", studentSearch);
+  console.log("Student id: ", studentId);
   return (
-    <tr onSubmit={handleSubmit(onStudentSubmit)} className="bg-base-200 hover">
+    <tr className={`${studentSearch === studentId ? "bg-[#20BCD8]": "bg-base-200 "}`}>
       <td>{index + 1}</td>
       {
         !isStudentEditClicked ?
           <>
+            <td>{studentId}</td>
             <td>{studentName}</td>
             <td>{className}</td>
             <td>{studentAddress}</td>
             <td>{email}</td>
             <td>{phoneNumber}</td>
           </> : <>
+            <td>
+              <input
+                className={`h-4 w-full outline-none px-2 rounded ${errors?.id && "border border-red-500"}`}
+                defaultValue={studentId}
+                type="number"
+                {...register("id", { required: true })}
+              />
+            </td>
             <td>
               <input
                 className={`h-4 w-full outline-none px-2 rounded ${errors?.name && "border border-red-500"}`}

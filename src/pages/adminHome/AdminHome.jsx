@@ -6,10 +6,15 @@ import CustomModal from "../../utilities/CustomModal";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import useStudents from "../../hooks/useStudents";
+import useResults from "../../hooks/useResults";
+import useAxiosSecure from "../../hooks/useAxios";
+import { IoMdClose } from "react-icons/io";
 
 const Home = () => {
-  const [students, setStudents] = useState([]);
-  const [results, setResults] = useState([]);
+  const [axiosSecure] = useAxiosSecure()
+  const [studentData, , studentRefetch] = useStudents()
+  const [resultData, , resultRefetch] = useResults()
   const [isAdmin, setIsAdmin] = useState(false);
   const [pass, setPass] = useState("ADMIN");
   const [error, setError] = useState('');
@@ -18,59 +23,118 @@ const Home = () => {
   const denialPeriod = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
   const navigate = useNavigate()
   const [studentSearch, setStudentSearch] = useState("");
+  const [studentInput, setStudentInput] = useState("");
+  const [studentSearchClicked, setStudentSearchClicked] = useState(false);
   const [resultSearch, setResultSearch] = useState("");
+  const [resultInput, setResultInput] = useState("");
+  const [resultSearchClicked, setResultSearchClicked] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false)
   const [isResultModalOpen, setIsResultModalOpen] = useState(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
-  useEffect(() => {
-    fetch("https://localhost:7200/api/Student/Fetch")
-      .then((res) => res.json())
-      .then((data) => setStudents(data));
-  }, []);
-
-  useEffect(() => {
-    fetch("https://localhost:7200/api/StudentResult/Fetch")
-      .then((res) => res.json())
-      .then((data) => setResults(data));
-  }, []);
-
-  const handleStudentSearch = (name) => {
-    console.log("Searching information for:", name);
-    setStudentSearch("");
+  const handleStudentSearch = (id) => {
+    axiosSecure.get(`/Student/get/${id}`)
+      .then(res => {
+        if (res.status === 200) {
+          setStudentSearch(id);
+          setStudentSearchClicked(true)
+          console.log(res);
+        }
+      })
+      .catch(error => {
+        Swal.fire({
+          title: `${id} Not found`,
+          showClass: {
+            popup: 'animate__animated animate__fadeInDown'
+          },
+          hideClass: {
+            popup: 'animate__animated animate__fadeOutUp'
+          }
+        })
+      });
   };
 
-  const handleResultSearch = (name) => {
-    console.log("Searching result for:", name);
-    setResultSearch("");
+  const handleResultSearch = (id) => {
+    axiosSecure.get(`/StudentResult/get/${id}`)
+      .then(res => {
+        console.log(res);
+        if (res.status === 200) {
+          setResultSearch(id);
+          setResultSearchClicked(true)
+        }
+      })
+      .catch(error => {
+        Swal.fire({
+          title: `${id} Not found`,
+          showClass: {
+            popup: 'animate__animated animate__fadeInDown'
+          },
+          hideClass: {
+            popup: 'animate__animated animate__fadeOutUp'
+          }
+        })
+      });
   };
 
   const onStudentDataSubmit = data => {
     const addedStudent = {
       studentName: data?.name,
+      studentId: data?.id,
       className: data?.class,
       studentAddress: data?.address,
       email: data?.email,
       phoneNumber: data?.phone,
     }
-    console.log(addedStudent);
-    setIsStudentModalOpen(false)
-    reset()
+
+    axiosSecure.post('/Student', addedStudent)
+      .then(res => {
+        if (res.status === 200) {
+          Swal.fire({
+            title: 'Student added successfully',
+            showClass: {
+              popup: 'animate__animated animate__fadeInDown'
+            },
+            hideClass: {
+              popup: 'animate__animated animate__fadeOutUp'
+            }
+          })
+          studentRefetch();
+          setIsStudentModalOpen(false);
+          reset();
+        }
+      })
   }
 
   const onResultDataSubmit = data => {
-    const updatedResult = {
+    const addedResult = {
       studentName: data?.name,
+      studentId: data?.id,
       bangla: data?.bangla,
       english: data?.english,
       math: data?.math,
       science: data?.science,
       islam: data?.islam,
-      gpa: data?.gpa
+      avg: ((parseInt(data?.bangla) + parseInt(data?.english) + parseInt(data?.math) + parseInt(data?.science) + parseInt(data?.islam)) / 5).toString()
     }
-    console.log(updatedResult);
-    setIsResultModalOpen(false)
-    reset()
+
+    console.log(addedResult);
+    axiosSecure.post('/StudentResult', addedResult)
+      .then(res => {
+        if (res.status === 200) {
+          Swal.fire({
+            title: 'Result submitted successfully',
+            showClass: {
+              popup: 'animate__animated animate__fadeInDown'
+            },
+            hideClass: {
+              popup: 'animate__animated animate__fadeOutUp'
+            }
+          })
+          resultRefetch();
+          setIsResultModalOpen(false);
+          reset();
+        }
+      })
   }
 
   useEffect(() => {
@@ -93,7 +157,6 @@ const Home = () => {
   const handlePasswordSubmit = e => {
     e.preventDefault();
     const password = e.target.password.value;
-
     if (password !== pass) {
       setError('Password did not match');
       setWrongAttempts(prevAttempts => prevAttempts + 1); // Increment attempts
@@ -142,7 +205,7 @@ const Home = () => {
                 }
 
                 <input
-                  className='mt-3 lg:mt-5 rounded lg:text-lg cursor-pointer bg-title px-3 py-1 w-fit hover:bg-[#20BCD8] text-white duration-300'
+                  className='mt-3 lg:mt-5 rounded lg:text-lg cursor-pointer text-white px-3 py-1 w-fit bg-[#20BCD8] duration-300'
                   type="submit"
                   value="Submit"
                 />
@@ -152,20 +215,34 @@ const Home = () => {
           <div>
             <h2 className="text-3xl text-center pt-24 mb-5">Student Information</h2>
             <div className="rounded-lg border border-black max-w-md mx-auto flex justify-between items-center mb-5">
-              <input
-                className={`h-8 w-full rounded-lg outline-none px-2`}
-                onChange={(e) => setStudentSearch(e.target.value)}
-
-                placeholder="Search by name"
-                type="text"
-              />
-              <FaSearch onClick={() => handleStudentSearch(studentSearch)} className="text-green-500 w-10 h-5 cursor-pointer" />
+              {
+                !studentSearchClicked ?
+                  <input
+                    className={`h-8 w-full rounded-lg outline-none px-2`}
+                    onChange={e => setStudentInput(e.target.value)}
+                    placeholder="Search by id"
+                    type="text"
+                  /> :
+                  <input
+                    className={`h-8 w-full rounded-lg outline-none px-2`}
+                    onChange={e => setStudentInput(e.target.value)}
+                    placeholder="Search by id"
+                    value=""
+                    type="text"
+                  />
+              }
+              {
+                !studentSearchClicked ?
+                  <FaSearch onClick={e => handleStudentSearch(studentInput)} className="text-green-500 w-10 h-5 cursor-pointer" /> :
+                  <IoMdClose onClick={e => { setStudentSearchClicked(false); setStudentSearch("") }} className="text-red-500 w-10 h-5 cursor-pointer" />
+              }
             </div>
             <div className="overflow-x-auto mb-10 w-full mx-auto max-w-4xl rounded">
-              <table className="table table-zebra text-center">
+              <table className="table text-center">
                 <thead>
                   <tr>
                     <th></th>
+                    <th>ID</th>
                     <th>Name</th>
                     <th>Class</th>
                     <th>Address</th>
@@ -175,8 +252,8 @@ const Home = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student, index) => (
-                    <Student key={index} student={student} index={index}></Student>
+                  {studentData.map((student, index) => (
+                    <Student key={index} student={student} index={index} studentSearch={studentSearch}></Student>
                   ))}
                 </tbody>
               </table>
@@ -190,32 +267,47 @@ const Home = () => {
 
             <h2 className="text-3xl text-center my-5">Result Information</h2>
             <div className="rounded-lg border border-black max-w-md mx-auto flex justify-between items-center mb-5">
-              <input
-                className={`h-8 w-full rounded-lg outline-none px-2`}
-                onChange={(e) => setResultSearch(e.target.value)}
-                placeholder="Search by name"
-                type="text"
-              />
-              <FaSearch onClick={() => handleResultSearch(resultSearch)} className="text-green-500 w-10 h-5 cursor-pointer" />
+              {
+                !resultSearchClicked ?
+                  <input
+                    className={`h-8 w-full rounded-lg outline-none px-2`}
+                    placeholder="Search by id"
+                    onChange={e => setResultInput(e.target.value)}
+                    type="text"
+                  /> :
+                  <input
+                    className={`h-8 w-full rounded-lg outline-none px-2`}
+                    placeholder="Search by id"
+                    onChange={e => setResultInput(e.target.value)}
+                    value=""
+                    type="text"
+                  />
+              }
+              {
+                !resultSearchClicked ?
+                  <FaSearch onClick={() => handleResultSearch(resultInput)} className="text-green-500 w-10 h-5 cursor-pointer" /> :
+                  <IoMdClose onClick={e => { setResultSearchClicked(false); setResultSearch(""); }} className="text-red-500 w-10 h-5 cursor-pointer" />
+              }
             </div>
             <div className="overflow-x-auto mb-10 w-full mx-auto max-w-4xl rounded">
-              <table className="table table-zebra text-center">
+              <table className="table text-center">
                 <thead>
                   <tr>
                     <th></th>
+                    <th>ID</th>
                     <th>Name</th>
                     <th>Bangla</th>
                     <th>English</th>
                     <th>Math</th>
                     <th>Science</th>
                     <th>Islam</th>
-                    <th>GPA</th>
+                    <th>Average</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((res, index) => (
-                    <Result key={index} res={res} index={index}></Result>
+                  {resultData.map((res, index) => (
+                    <Result key={index} res={res} index={index} resultSearch={resultSearch}></Result>
                   ))}
                 </tbody>
               </table>
@@ -248,11 +340,24 @@ const Home = () => {
                     </div>
 
                     <div className="w-full">
+                      <label className="text-sm">Student ID</label>
+                      <input
+                        className={`h-8 w-full border outline-none px-2 rounded ${errors?.id ? "border-red-500" : "border-[#20BCD8]"}`}
+                        type="number"
+                        {...register("id", { required: true })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center gap-5">
+                    <div className="w-full">
                       <label className="text-sm">Class</label>
                       <select
+                        defa
                         className={`h-8 w-full  border outline-none px-2 rounded ${errors?.class ? "border-red-500" : "border-[#20BCD8]"}`}
                         {...register("class", { required: true })}
                       >
+                        <option disabled value="">Select class</option>
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -265,15 +370,14 @@ const Home = () => {
                         <option value="10">10</option>
                       </select>
                     </div>
-                  </div>
-
-                  <div className="w-full">
-                    <label className="text-sm">Student Address</label>
-                    <input
-                      className={`h-8 w-full border outline-none px-2 rounded ${errors?.address ? "border-red-500" : "border-[#20BCD8]"}`}
-                      type="text"
-                      {...register("address", { required: true })}
-                    />
+                    <div className="w-full">
+                      <label className="text-sm">Student Address</label>
+                      <input
+                        className={`h-8 w-full border outline-none px-2 rounded ${errors?.address ? "border-red-500" : "border-[#20BCD8]"}`}
+                        type="text"
+                        {...register("address", { required: true })}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex justify-between items-center gap-5">
@@ -324,6 +428,14 @@ const Home = () => {
                         className={`h-8 w-full border outline-none px-2 rounded ${errors?.name ? "border-red-500" : "border-[#20BCD8]"}`}
                         type="text"
                         {...register("name", { required: true })}
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="text-sm">Student ID</label>
+                      <input
+                        className={`h-8 w-full border outline-none px-2 rounded ${errors?.id ? "border-red-500" : "border-[#20BCD8]"}`}
+                        type="number"
+                        {...register("id", { required: true })}
                       />
                     </div>
                   </div>
@@ -379,15 +491,6 @@ const Home = () => {
                         {...register("islam", { required: true, min: 0, max: 100 })}
                       />
                     </div>
-
-                    <div className="w-full">
-                      <label className="text-sm">GPA</label>
-                      <input
-                        className={`h-8 w-full border outline-none px-2 rounded ${errors?.gpa ? "border-red-500" : "border-[#20BCD8]"}`}
-                        type="number"
-                        {...register("gpa", { required: true, min: 0, max: 5 })}
-                      />
-                    </div>
                   </div>
 
                   {/* Submit */}
@@ -407,5 +510,3 @@ const Home = () => {
 };
 
 export default Home;
-
-<div className="overflow-x-auto"></div>;

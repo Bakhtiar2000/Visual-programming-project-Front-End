@@ -5,25 +5,47 @@ import { FiEdit } from "react-icons/fi";
 import { IoMdClose } from "react-icons/io";
 import { MdOutlineDone } from "react-icons/md";
 import Swal from "sweetalert2";
+import useAxiosSecure from "../../hooks/useAxios";
+import useResults from "../../hooks/useResults";
 
-const Result = ({ res, index }) => {
-  const { studentName, bangla, islam, gpa, science, english, math } = res;
+const Result = ({ res, index, resultSearch }) => {
+  // console.log(resultSearch);
+  const [axiosSecure] = useAxiosSecure()
+  const [resultData, , resultRefetch] = useResults()
+  const { studentId, studentName, bangla, islam, avg, science, english, math } = res;
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
   const [isResultEditClicked, setIsResultEditClicked] = useState(false);
 
   const onResultSubmit = data => {
     const updatedResult = {
+      studentId: data?.id,
       studentName: data?.name,
       bangla: data?.bangla,
       english: data?.english,
       math: data?.math,
       science: data?.science,
       islam: data?.islam,
-      gpa: data?.gpa
+      avg: ((parseInt(data?.bangla) + parseInt(data?.english) + parseInt(data?.math) + parseInt(data?.science) + parseInt(data?.islam)) / 5).toString()
     }
     console.log(updatedResult);
-    setIsResultEditClicked(false);
-    reset();
+
+    axiosSecure.post(`/StudentResult/${studentId}`, updatedResult)
+      .then(res => {
+        if (res.status === 200) {
+          Swal.fire({
+            title: `${studentName}'s result has been updated`,
+            showClass: {
+              popup: 'animate__animated animate__fadeInDown'
+            },
+            hideClass: {
+              popup: 'animate__animated animate__fadeOutUp'
+            }
+          })
+          resultRefetch();
+          setIsResultEditClicked(false);
+          reset();
+        }
+      })
   }
 
   const handleCaseDelete = () => {
@@ -36,25 +58,45 @@ const Result = ({ res, index }) => {
       confirmButtonText: "Yes, Delete it!",
     }).then((result) => {
       if (result.isConfirmed) {
-
+        axiosSecure.delete(`StudentResult/${studentId}`)
+          .then(res => {
+            if (res.status === 200) {
+              Swal.fire({
+                icon: "success",
+                title: "Deleted Successfully!",
+                showConfirmButton: false,
+                timer: 1500,
+              });
+              resultRefetch()
+            }
+          })
       }
     });
   }
 
   return (
-    <tr className="bg-base-200 hover">
+    <tr className={` ${resultSearch == studentId ? "bg-green-200" : "bg-base-200"}`}>
       <td>{index + 1}</td>
       {
         !isResultEditClicked ?
           <>
+            <td>{studentId}</td>
             <td>{studentName}</td>
             <td>{bangla}</td>
             <td>{english}</td>
             <td>{math}</td>
             <td>{science}</td>
             <td>{islam}</td>
-            <td>{gpa}</td>
+            <td>{avg}</td>
           </> : <>
+            <td>
+              <input
+                className={`h-4 w-full outline-none px-2 rounded ${errors?.id && "border border-red-500"}`}
+                defaultValue={studentId}
+                type="number"
+                {...register("id", { required: true })}
+              />
+            </td>
             <td>
               <input
                 className={`h-4 w-full outline-none px-2 rounded ${errors?.name && "border border-red-500"}`}
@@ -105,10 +147,9 @@ const Result = ({ res, index }) => {
             </td>
             <td>
               <input
-                className={`h-4 w-full outline-none px-2 rounded ${errors?.gpa && "border border-red-500"}`}
-                defaultValue={gpa}
-                type="number"
-                {...register("gpa", { required: true, min: 0, max: 5 })}
+                className={`h-4 w-full outline-none px-2 rounded`}
+                defaultValue={avg}
+                readOnly
               />
             </td>
           </>
